@@ -1,0 +1,22 @@
+{
+  "name": "artificial-coin-oracle",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ailisp/artificial-coin-oracle.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ailisp/artificial-coin-oracle/issues"
+  },
+  "homepage": "https://github.com/ailisp/artificial-coin-oracle#readme",
+  "dependencies": {
+    "web3": "^1.3.4"
+  }
+}
