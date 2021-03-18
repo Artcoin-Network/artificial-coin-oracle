@@ -14,26 +14,34 @@ async function main() {
 
     while (true) {
         let prices;
-        try {
-            prices = await getPrices()
-        } catch (e) {
-            console.error('error to get price: ')
-            console.error(e)
-            console.error('retrying in 5s')
-            await sleep(5000);
-            continue;
+        while (true) {
+            try {
+                prices = await getPrices()
+                break
+            } catch (e) {
+                console.error('error to get price: ')
+                console.error(e)
+                console.error('retrying in 1 min')
+                await sleep(60000);
+                continue;
+            }
         }
 
-        try {
-            await submitPrices(prices, contract)
-        } catch (e) {
-            console.error('error to submit price: ')
-            console.error(e)
-            console.error('sleeping for 5s')
-            await sleep(5000);
-            continue;
+        while (true) {
+            try {
+                await submitPrices(prices, contract)
+                break
+            } catch (e) {
+                console.error('error to submit price: ')
+                console.error(e)
+                console.error('sleeping for 1 min')
+                await sleep(60000);
+                continue;
+            }
         }
-        await sleep(5000);
+
+        console.log('update price in 10 min')
+        await sleep(600000);
     }
 }
 
@@ -50,9 +58,9 @@ async function submitPrices(prices, contract) {
     console.log(a)
     for (let k in prices) {
         if (k != 'art') {
-            let name = 'a'+k.toUpperCase()
-        let a = await contract.submit_asset_price({asset:name, price:priceToContrat(prices[k])})
-            console.log(a)
+            let name = 'a' + k.toUpperCase()
+            console.log('submitting ' + name)
+            await contract.submit_asset_price({asset:name, price:priceToContrat(prices[k])})
         }
     }
     console.log(a)
@@ -102,10 +110,11 @@ async function getCoinPriceFromCoingecko(coin) {
 }
 
 async function getPrices() {
+    console.log('get prices')
     if (last_prices['art']) {
         last_art_price = last_prices['art']
         // art is not on market, just grab a mocked price for now
-        new_art_price = last_art_price * (1.1001 - Math.random() / 5)
+        new_art_price = last_art_price * (1.101 - Math.random() / 5)
         if (new_art_price < 1) {
             new_art_price *= 1.5;
         }
