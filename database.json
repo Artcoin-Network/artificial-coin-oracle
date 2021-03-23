@@ -1,0 +1,9 @@
+{
+    "dev": {
+        "driver": "pg",
+        "user": "artcoin_dev",
+        "password": "artcoin_dev",
+        "database": "artcoin_dev"
+    },
+    "sql-file": true
+}

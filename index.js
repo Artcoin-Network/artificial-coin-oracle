@@ -4,10 +4,7 @@ let nearAPI = require('near-api-js')
 let { KeyPair } = nearAPI;
 let fetch = require('node-fetch')
 let getConfig = require('./config')
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-}
+const { pool, sql } = require('./db');
 
 async function main() {
     let { contract, nearConfig } = await initContract()
@@ -27,6 +24,17 @@ async function main() {
             }
         }
 
+        // current oracle is very centralize, however, none of existing oracle has all variety of price data that aUSD needed,
+        // so, we would have to build our own decentralized oracle.
+        // In short, oracle is a piece of nodejs app, that take an ART staker's function call key, and continuously trying to submit data
+        // All submitted prices are queued, when the last submitter (pass threshold), and verify all prices are within 0.5%, then price 
+        // submit is valid, all stakers get reward. Otherwise, the very off staker won't get reward. And price is now submitted.
+        // By then, artcoin.network, will not run oracle in future to be fully decentralized. We'll still keep a indexing database which would
+        // keep the history of price, and maintain the frontend UI
+        await insertPricesToDB(prices)
+
+        console.log(await pool.query(sql.listPrices()))
+
         while (true) {
             try {
                 await submitPrices(prices, contract)
@@ -45,28 +53,61 @@ async function main() {
     }
 }
 
-let last_prices = {}
+async function insertPricesToDB(prices) {
+    for (let name in prices) {
+        let price = prices[name]
+        let time = new Date();
+        await pool.query(sql.insertPrice({
+            name,
+            time: time.toISOString(),
+            price: price,
+        }));
+    }
+}
 
-function priceToContrat(price) {
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function priceToContract(price) {
     return Math.floor(Number(price) * Math.pow(10, 8)).toString()
 }
 
-async function submitPrices(prices, contract) {
-    console.log('submit price')
-    console.log(prices)
-    let a = await contract.submit_price({ price: priceToContrat(prices['art']) })
-    console.log(a)
-    for (let k in prices) {
-        if (k != 'art') {
-            let name = 'a' + k.toUpperCase()
-            console.log('submitting ' + name)
-            await contract.submit_asset_price({asset:name, price:priceToContrat(prices[k])})
-        }
+let last_prices = { 'art': Math.random() * 5 + 5 };
+
+async function getLastArtPrice(_) {
+    last_art_price = last_prices['art']
+    // art is not on market, just grab a mocked price for now
+    new_art_price = last_art_price * (1.11 - Math.random() / 5)
+    if (new_art_price < 1) {
+        new_art_price *= 1.5;
     }
-    console.log(a)
+    last_prices['art'] = new_art_price
+    return new_art_price
 }
 
-const chainLinkFeeds = {
+async function getPriceFromChainLink(handle) {
+    let url = 'https://mainnet.infura.io/v3/28c4cd108b704522b53bf9760086e8dd'
+    const web3 = new Web3(url);
+    const aggregatorV3InterfaceABI = [{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"description","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint80","name":"_roundId","type":"uint80"}],"name":"getRoundData","outputs":[{"internalType":"uint80","name":"roundId","type":"uint80"},{"internalType":"int256","name":"answer","type":"int256"},{"internalType":"uint256","name":"startedAt","type":"uint256"},{"internalType":"uint256","name":"updatedAt","type":"uint256"},{"internalType":"uint80","name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"latestRoundData","outputs":[{"internalType":"uint80","name":"roundId","type":"uint80"},{"internalType":"int256","name":"answer","type":"int256"},{"internalType":"uint256","name":"startedAt","type":"uint256"},{"internalType":"uint256","name":"updatedAt","type":"uint256"},{"internalType":"uint80","name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"version","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}];
+    const addr = CHAINLINK_FEEDS[handle].addr;
+    const priceFeed = new web3.eth.Contract(aggregatorV3InterfaceABI, addr);
+    let data = await priceFeed.methods.latestRoundData().call()
+    return Number(data.answer)/Math.pow(10, CHAINLINK_FEEDS[handle].multi)
+}
+
+async function getPriceFromYahooFinance(handle) {
+    const data = await yahooStockPrices.getCurrentData(handle);
+    return data.price
+}
+
+async function getCoinPriceFromCoingecko(handle) {
+    let req = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${handle}&vs_currencies=usd`)
+    let resp = await req.json();
+    return resp[handle].usd
+}
+
+const CHAINLINK_FEEDS = {
     'BTC': {
         'addr': '0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c',
         'multi': 8
@@ -81,64 +122,45 @@ const chainLinkFeeds = {
     }
 }
 
-async function getPriceFromChainLink(name) {
-    let url = 'https://mainnet.infura.io/v3/28c4cd108b704522b53bf9760086e8dd'
-    const web3 = new Web3(url);
-    const aggregatorV3InterfaceABI = [{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"description","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint80","name":"_roundId","type":"uint80"}],"name":"getRoundData","outputs":[{"internalType":"uint80","name":"roundId","type":"uint80"},{"internalType":"int256","name":"answer","type":"int256"},{"internalType":"uint256","name":"startedAt","type":"uint256"},{"internalType":"uint256","name":"updatedAt","type":"uint256"},{"internalType":"uint80","name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"latestRoundData","outputs":[{"internalType":"uint80","name":"roundId","type":"uint80"},{"internalType":"int256","name":"answer","type":"int256"},{"internalType":"uint256","name":"startedAt","type":"uint256"},{"internalType":"uint256","name":"updatedAt","type":"uint256"},{"internalType":"uint80","name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"version","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}];
-    const addr = chainLinkFeeds[name].addr;
-    const priceFeed = new web3.eth.Contract(aggregatorV3InterfaceABI, addr);
-    let data = await priceFeed.methods.latestRoundData().call()
-    return Number(data.answer)/Math.pow(10, chainLinkFeeds[name].multi)
-}
-
-async function getPriceFromYahooFinance(name) {
-    const data = await yahooStockPrices.getCurrentData(name);
-    console.log(data) // { currency: 'USD', price: 132.05 }
-    return data.price
-}
-
-// async function getCoinDayRateRecent(coin) {
-//     let req = await fetch(`https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=91`);
-//     let resp = await req.json();
-//     return resp;
-// }
-
-async function getCoinPriceFromCoingecko(coin) {
-    let req = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`)
-    let resp = await req.json();
-    return resp[coin].usd
-}
+const ASSETS = [
+    {
+        name: 'art',
+        handle: 'art',
+        fun: getLastArtPrice
+    },
+    {
+        name: 'aBTC',
+        handle: 'BTC',
+        fun: getPriceFromChainLink,
+    },
+    {
+        name: 'aEUR',
+        handle: 'EUR',
+        fun: getPriceFromChainLink,
+    },
+    {
+        name: 'aGOLD',
+        handle: 'GOLD',
+        fun: getPriceFromChainLink,
+    },
+    {
+        name: 'aSPY',
+        handle: 'SPY',
+        fun: getPriceFromYahooFinance,
+    }
+]
 
 async function getPrices() {
     console.log('get prices')
-    if (last_prices['art']) {
-        last_art_price = last_prices['art']
-        // art is not on market, just grab a mocked price for now
-        new_art_price = last_art_price * (1.101 - Math.random() / 5)
-        if (new_art_price < 1) {
-            new_art_price *= 1.5;
-        }
-        last_prices['art'] = new_art_price
-    } else {
-        last_prices['art'] = 10
+    let prices = {}
+    
+    for (let a of ASSETS) {
+        let p = await a['fun'](a['handle'])
+        prices[a['name']] = p
+        console.log(`current ${a['name']} price: $ ${p}`)
     }
-    console.log('current art price: $', last_prices['art'])
-    let btc = await getPriceFromChainLink('BTC')
 
-    console.log('current aBTC price: $', btc)
-    let eur = await getPriceFromChainLink('EUR')
-    console.log('current aEUR price: $', eur)
-
-    let gold = await getPriceFromChainLink('GOLD')
-    console.log('current aGOLD price: $', gold)
-
-    let spy = await getPriceFromYahooFinance('SPY')
-    console.log('current aSPY price: $', spy)
-
-    let near = await getCoinPriceFromCoingecko('near')
-    console.log('current aSPY price: $', near)
-
-    return {btc, eur, gold, spy, near, art: last_prices['art']}
+    return prices
 }
 
 async function initContract() {
@@ -176,6 +198,21 @@ async function initContract() {
     })
   
     return { contract, nearConfig }
+}
+
+async function submitPrices(prices, contract) {
+    console.log('submit price')
+    console.log(prices)
+    let a = await contract.submit_price({ price: priceToContract(prices['art']) })
+    console.log(a)
+    for (let k in prices) {
+        if (k != 'art') {
+            let name = 'a' + k.toUpperCase()
+            console.log('submitting ' + name)
+            await contract.submit_asset_price({asset:name, price:priceToContract(prices[k])})
+        }
+    }
+    console.log(a)
 }
 
 main() 
