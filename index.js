@@ -33,8 +33,6 @@ async function main() {
         // keep the history of price, and maintain the frontend UI
         await insertPricesToDB(prices)
 
-        console.log(await pool.query(sql.listPrices()))
-
         while (true) {
             try {
                 await submitPrices(prices, contract)
