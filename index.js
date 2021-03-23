@@ -164,7 +164,7 @@ async function getPrices() {
 }
 
 async function initContract() {
-    let networkId = process.env.NODE_ENV || 'testnet'
+    let networkId = 'testnet'
     console.log(networkId)
     const nearConfig = getConfig(networkId);
   
