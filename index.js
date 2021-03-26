@@ -201,16 +201,15 @@ async function initContract() {
 async function submitPrices(prices, contract) {
     console.log('submit price')
     console.log(prices)
-    let a = await contract.submit_price({ price: priceToContract(prices['art']) })
-    console.log(a)
+    console.log('submitting art')
+    await contract.submit_price({ price: priceToContract(prices['art']) })
     for (let k in prices) {
         if (k != 'art') {
-            let name = 'a' + k.toUpperCase()
+            let name = k
             console.log('submitting ' + name)
             await contract.submit_asset_price({asset:name, price:priceToContract(prices[k])})
         }
     }
-    console.log(a)
 }
 
 main() 
