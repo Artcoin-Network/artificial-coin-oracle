@@ -145,6 +145,11 @@ const ASSETS = [
         name: 'aSPY',
         handle: 'SPY',
         fun: getPriceFromYahooFinance,
+    },
+    {
+        name: 'aNEAR',
+        handle: 'near',
+        fun: getCoinPriceFromCoingecko
     }
 ]
 
