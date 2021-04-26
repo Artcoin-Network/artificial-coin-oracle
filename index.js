@@ -6,14 +6,33 @@ let fetch = require('node-fetch')
 let getConfig = require('./config')
 const { pool, sql } = require('./db')
 
+async function lastPrices() {
+  let p = await pool.query(sql.listLastPrices())
+  p = p.rows
+  let result = {}
+  for (let r of p) {
+    result[r.name] = r.price
+  }
+  return result
+}
+
+let last_prices
+
 async function main() {
   let { contract, nearConfig } = await initContract()
 
   while (true) {
     let prices
     while (true) {
+      let oldPrices
       try {
-        prices = await getPrices()
+        if (prices) {
+          oldPrices = prices
+        } else {
+          oldPrices = await lastPrices()
+        }
+        last_prices = oldPrices
+        prices = await getPrices(oldPrices)
         break
       } catch (e) {
         console.error('error to get price: ')
@@ -73,10 +92,8 @@ function priceToContract(price) {
   return Math.floor(Number(price) * Math.pow(10, 8)).toString()
 }
 
-let last_prices = { art: Math.random() * 5 + 5 }
-
 async function getLastArtPrice(_) {
-  last_art_price = last_prices['art']
+  last_art_price = last_prices['art'] || Math.random() * 5 + 5
   // art is not on market, just grab a mocked price for now
   new_art_price = last_art_price * (1.101 - Math.random() / 5)
   if (new_art_price < 1) {
@@ -203,9 +220,103 @@ const ASSETS = [
     handle: 'near',
     fun: getCoinPriceFromCoingecko,
   },
+  {
+    name: 'aGOOG',
+    handle: 'GOOG',
+    fun: getPriceFromYahooFinance,
+  },
+  {
+    name: 'aAAPL',
+    handle: 'AAPL',
+    fun: getPriceFromYahooFinance,
+  },
+  {
+    name: 'aTSLA',
+    handle: 'TSLA',
+    fun: getPriceFromYahooFinance,
+  },
+  {
+    name: 'aNFLX',
+    handle: 'NFLX',
+    fun: getPriceFromYahooFinance,
+  },
+  {
+    name: 'aFB',
+    handle: 'FB',
+    fun: getPriceFromYahooFinance,
+  },
 ]
 
-async function getPrices() {
+function NX(n) {
+  return ({ prices, oldPrices, baseName, name, initial }) => {
+    let baseOldPrice = oldPrices[baseName]
+    let basePrice = prices[baseName]
+    let oldPrice = oldPrices[name] || initial
+    let baseIncrease = (basePrice - baseOldPrice) / baseOldPrice
+    let increase = baseIncrease * n
+    let price = oldPrice * (1 + increase)
+    return price
+  }
+}
+
+const DERIVED_ASSETS = [
+  {
+    name: 'a3xBTC',
+    baseName: 'aBTC',
+    derive: NX(3),
+    initial: 10000,
+  },
+  {
+    name: 'a2xBTC',
+    baseName: 'aBTC',
+    derive: NX(2),
+    initial: 10000,
+  },
+  {
+    name: 'a5xBTC',
+    baseName: 'aBTC',
+    derive: NX(5),
+    initial: 10000,
+  },
+  {
+    name: 'a10xBTC',
+    baseName: 'aBTC',
+    derive: NX(10),
+    initial: 10000,
+  },
+  {
+    name: 'a-xBTC',
+    baseName: 'aBTC',
+    derive: NX(-1),
+    initial: 10000,
+  },
+  {
+    name: 'a-2xBTC',
+    baseName: 'aBTC',
+    derive: NX(-2),
+    initial: 10000,
+  },
+  {
+    name: 'a-3xBTC',
+    baseName: 'aBTC',
+    derive: NX(-3),
+    initial: 10000,
+  },
+  {
+    name: 'a-5xBTC',
+    baseName: 'aBTC',
+    derive: NX(-5),
+    initial: 10000,
+  },
+  {
+    name: 'a-10xBTC',
+    baseName: 'aBTC',
+    derive: NX(-10),
+    initial: 10000,
+  },
+]
+
+async function getPrices(oldPrices) {
   console.log('get prices')
   let prices = {}
 
@@ -213,6 +324,18 @@ async function getPrices() {
     let p = await a['fun'](a['handle'])
     prices[a['name']] = p
     console.log(`current ${a['name']} price: $ ${p}`)
+  }
+
+  for (let d of DERIVED_ASSETS) {
+    let p = d['derive']({
+      oldPrices,
+      prices,
+      name: d['name'],
+      baseName: d['baseName'],
+      initial: d['initial'],
+    })
+    prices[d['name']] = p
+    console.log(`current ${d['name']} price: $ ${p}`)
   }
 
   return prices
