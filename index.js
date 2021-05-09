@@ -162,7 +162,9 @@ async function getPriceFromChainLink(handle) {
 }
 
 async function getPriceFromYahooFinance(handle) {
+  console.log('get price from yahoo for ' + handle)
   const data = await yahooStockPrices.getCurrentData(handle)
+  console.log('get price from yahoo for ' + handle + ' done')
   return data.price
 }
 
