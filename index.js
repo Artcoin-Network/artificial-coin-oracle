@@ -163,9 +163,21 @@ async function getPriceFromChainLink(handle) {
 
 async function getPriceFromYahooFinance(handle) {
   console.log('get price from yahoo for ' + handle)
-  const data = await yahooStockPrices.getCurrentData(handle)
+  // bug, stuck forever
+  // const data = await yahooStockPrices.getCurrentData(handle)
+  const baseUrl = 'https://finance.yahoo.com/quote/'
+  req = await fetch(`${baseUrl}${handle}/`)
+  let body = await req.text()
+  let price = body
+    .split(`"${handle}":{"sourceInterval"`)[1]
+    .split('regularMarketPrice')[1]
+    .split('fmt":"')[1]
+    .split('"')[0]
+
+  price = parseFloat(price.replace(',', ''))
+
   console.log('get price from yahoo for ' + handle + ' done')
-  return data.price
+  return price
 }
 
 async function getCoinPriceFromCoingecko(handle) {
