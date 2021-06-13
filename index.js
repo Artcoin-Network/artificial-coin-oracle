@@ -407,15 +407,25 @@ async function submitPrices(prices, contract) {
   console.log('submit price')
   console.log(prices)
   console.log('submitting art')
-  await contract.submit_price({ price: priceToContract(prices['art']) })
+  try {
+    await contract.submit_price({ price: priceToContract(prices['art']) })
+  } catch (e) {
+    console.log('=== submit art price error, ignore')
+    console.log(e)
+  }
   for (let k in prices) {
     if (k != 'art') {
       let name = k
       console.log('submitting ' + name)
-      await contract.submit_asset_price({
-        asset: name,
-        price: priceToContract(prices[k]),
-      })
+      try {
+        await contract.submit_asset_price({
+          asset: name,
+          price: priceToContract(prices[k]),
+        })
+      } catch (e) {
+        console.log('=== submit price of' + name + 'failed, ignore')
+        console.log(e)
+      }
     }
   }
 }
