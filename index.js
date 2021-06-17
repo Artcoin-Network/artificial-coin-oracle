@@ -21,53 +21,50 @@ let last_prices
 async function main() {
   let { contract, nearConfig } = await initContract()
 
+  let prices
   while (true) {
-    let prices
-    while (true) {
-      let oldPrices
-      try {
-        if (prices) {
-          oldPrices = prices
-        } else {
-          oldPrices = await lastPrices()
-        }
-        last_prices = oldPrices
-        prices = await getPrices(oldPrices)
-        break
-      } catch (e) {
-        console.error('error to get price: ')
-        console.error(e)
-        console.error('retrying in 1 min')
-        await sleep(60000)
-        continue
+    let oldPrices
+    try {
+      if (prices) {
+        oldPrices = prices
+      } else {
+        oldPrices = await lastPrices()
       }
+      last_prices = oldPrices
+      prices = await getPrices(oldPrices)
+      break
+    } catch (e) {
+      console.error('error to get price: ')
+      console.error(e)
+      console.error('retrying in 1 min')
+      await sleep(60000)
+      continue
     }
-
-    // current oracle is very centralize, however, none of existing oracle has all variety of price data that aUSD needed,
-    // so, we would have to build our own decentralized oracle.
-    // In short, oracle is a piece of nodejs app, that take an ART staker's function call key, and continuously trying to submit data
-    // All submitted prices are queued, when the last submitter (pass threshold), and verify all prices are within 0.5%, then price
-    // submit is valid, all stakers get reward. Otherwise, the very off staker won't get reward. And price is now submitted.
-    // By then, artcoin.network, will not run oracle in future to be fully decentralized. We'll still keep a indexing database which would
-    // keep the history of price, and maintain the frontend UI
-    await insertPricesToDB(prices)
-
-    while (true) {
-      try {
-        await submitPrices(prices, contract)
-        break
-      } catch (e) {
-        console.error('error to submit price: ')
-        console.error(e)
-        console.error('sleeping for 1 min')
-        await sleep(60000)
-        continue
-      }
-    }
-
-    console.log('update price in 10 min')
-    await sleep(600000)
   }
+
+  // current oracle is very centralize, however, none of existing oracle has all variety of price data that aUSD needed,
+  // so, we would have to build our own decentralized oracle.
+  // In short, oracle is a piece of nodejs app, that take an ART staker's function call key, and continuously trying to submit data
+  // All submitted prices are queued, when the last submitter (pass threshold), and verify all prices are within 0.5%, then price
+  // submit is valid, all stakers get reward. Otherwise, the very off staker won't get reward. And price is now submitted.
+  // By then, artcoin.network, will not run oracle in future to be fully decentralized. We'll still keep a indexing database which would
+  // keep the history of price, and maintain the frontend UI
+  await insertPricesToDB(prices)
+
+  while (true) {
+    try {
+      await submitPrices(prices, contract)
+      break
+    } catch (e) {
+      console.error('error to submit price: ')
+      console.error(e)
+      console.error('sleeping for 1 min')
+      await sleep(60000)
+      continue
+    }
+  }
+
+  console.log('submit price done')
 }
 
 async function insertPricesToDB(prices) {
