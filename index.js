@@ -164,12 +164,15 @@ async function getPriceFromYahooFinance(handle) {
   // const data = await yahooStockPrices.getCurrentData(handle)
   const baseUrl = 'https://finance.yahoo.com/quote/'
   req = await fetch(`${baseUrl}${handle}/`)
+  console.log('fetch done')
   let body = await req.text()
+  console.log('text done')
   let price = body
     .split(`"${handle}":{"sourceInterval"`)[1]
     .split('regularMarketPrice')[1]
     .split('fmt":"')[1]
     .split('"')[0]
+  console.log('scratch done')
 
   price = parseFloat(price.replace(',', ''))
 
